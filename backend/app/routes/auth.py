@@ -126,7 +126,20 @@ async def forgot_password(data: ForgotPasswordRequest):
 
     # 2. Generate secure JWT reset token (10 min expiry)
     token = create_reset_token(user["id"])
-    frontend_base = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    
+    # Intelligently determine frontend URL
+    # 1. Try explicit FRONTEND_URL
+    # 2. Fallback to first entry in CORS_ORIGINS
+    # 3. Last resort: localhost
+    frontend_base = os.getenv("FRONTEND_URL")
+    if not frontend_base:
+        origins = os.getenv("CORS_ORIGINS", "")
+        if origins and origins != "*":
+            frontend_base = origins.split(",")[0].strip()
+        else:
+            frontend_base = "http://localhost:3000"
+            
+    frontend_base = frontend_base.rstrip("/")
     reset_link = f"{frontend_base}/reset-password/{token}"
     
     # 3. Send WhatsApp message
