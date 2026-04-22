@@ -1,0 +1,56 @@
+from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
+from .routes import auth, documents, chat, excel, stats, quota, user, two_factor
+
+app = FastAPI(title="Invoicelytics AI", version="2.0.0")
+
+import os
+
+# CORS Setup
+origins_env = os.getenv("CORS_ORIGINS", "")
+if origins_env == "*":
+    allow_origins = ["*"]
+elif origins_env:
+    allow_origins = origins_env.split(",")
+else:
+    allow_origins = [
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001"
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Request Logging Middleware
+@app.middleware("http")
+async def log_requests(request, call_next):
+    print(f"DEBUG: Incoming {request.method} {request.url.path}")
+    response = await call_next(request)
+    print(f"DEBUG: Finished {request.method} {request.url.path} with status {response.status_code}")
+    return response
+
+# Include Routers
+# Add a catch-all options handler if needed (usually handled by CORSMiddleware)
+app.include_router(auth.router, prefix="/api")
+app.include_router(documents.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
+app.include_router(excel.router, prefix="/api")
+app.include_router(stats.router, prefix="/api")
+app.include_router(quota.router, prefix="/api")
+app.include_router(user.router, prefix="/api")
+app.include_router(two_factor.router, prefix="/api")
+
+@app.get("/api/ping")
+async def ping():
+    return {"status": "ok", "version": "2.0.0"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
