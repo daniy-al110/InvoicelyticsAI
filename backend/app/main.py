@@ -52,7 +52,7 @@ app.include_router(quota.router, prefix="/api")
 app.include_router(user.router, prefix="/api")
 app.include_router(two_factor.router, prefix="/api")
 
-@app.get("/api/ping")
+@app.api_route("/api/ping", methods=["GET", "HEAD"])
 async def ping():
     return {"status": "ok", "version": "2.0.0"}
 
