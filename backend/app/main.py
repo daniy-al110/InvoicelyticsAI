@@ -7,18 +7,23 @@ app = FastAPI(title="Invoicelytics AI", version="2.0.0")
 import os
 
 # CORS Setup
+# CORS Setup
 origins_env = os.getenv("CORS_ORIGINS", "")
-if origins_env == "*":
-    allow_origins = ["*"]
-elif origins_env:
+if origins_env and origins_env != "*":
     allow_origins = origins_env.split(",")
 else:
+    # If CORS_ORIGINS is '*' or empty, we must provide a fallback list or handled specifically
+    # because allow_credentials=True is incompatible with "*"
     allow_origins = [
         "http://localhost:3000", 
         "http://127.0.0.1:3000",
         "http://localhost:8001",
         "http://127.0.0.1:8001"
     ]
+    # If the user actually wanted all origins, we'd need a dynamic origin resolver,
+    # but for security we'll stick to specific provided origins in production.
+    if origins_env == "*":
+        print("WARNING: CORS_ORIGINS='*' is incompatible with allow_credentials=True. Using default localhost origins. Please provide specific URLs.")
 
 app.add_middleware(
     CORSMiddleware,
