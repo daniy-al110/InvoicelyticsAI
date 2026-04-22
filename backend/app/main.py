@@ -9,27 +9,26 @@ import os
 # CORS Setup
 # CORS Setup
 # CORS Setup
+# CORS Setup
 origins_env = os.getenv("CORS_ORIGINS", "")
-if origins_env and origins_env != "*":
-    # Parse, strip whitespace, and remove trailing slashes for robust matching
+if origins_env == "*":
+    allow_origins = ["*"]
+elif origins_env:
     allow_origins = [origin.strip().rstrip("/") for origin in origins_env.split(",")]
 else:
-    # If CORS_ORIGINS is '*' or empty, we provide local fallbacks
     allow_origins = [
         "http://localhost:3000", 
         "http://127.0.0.1:3000",
         "http://localhost:8001",
         "http://127.0.0.1:8001"
     ]
-    if origins_env == "*":
-        print("WARNING: CORS_ORIGINS='*' is incompatible with allow_credentials=True. Using localhost defaults.")
 
 print(f"CORS: Allowed Origins configured as: {allow_origins}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
-    allow_credentials=True,
+    allow_credentials=False, # Set to False to allow "*" wildcard for origins
     allow_methods=["*"],
     allow_headers=["*"],
 )
