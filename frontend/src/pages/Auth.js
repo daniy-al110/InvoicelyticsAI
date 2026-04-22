@@ -136,7 +136,7 @@ const Auth = ({ initialIsLogin = true }) => {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/user/2fa/reset-password/request`, {
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: resetPhone })
