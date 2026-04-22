@@ -120,7 +120,8 @@ async def forgot_password(data: ForgotPasswordRequest):
 
     # 2. Generate secure JWT reset token (10 min expiry)
     token = create_reset_token(user["id"])
-    reset_link = f"http://localhost:3000/reset-password/{token}"
+    frontend_base = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    reset_link = f"{frontend_base}/reset-password/{token}"
     
     # 3. Send WhatsApp message
     message_text = f"Hello! Use the link below to reset your Invoicelytics AI password (expires in 10 minutes):\n\n{reset_link}"
