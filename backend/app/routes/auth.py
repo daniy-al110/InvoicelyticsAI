@@ -111,11 +111,17 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 async def forgot_password(data: ForgotPasswordRequest):
     phone = whatsapp_service.normalize_phone(data.phone.strip())
     
-    # 1. Find user by their registered 2FA phone
-    user = await db.users.find_one({"two_factor_phone": phone})
+    # 1. Find user by their registered phone or 2FA phone
+    print(f"DEBUG: Password reset request for normalized phone: {phone}")
+    user = await db.users.find_one({
+        "$or": [
+            {"phone": phone},
+            {"two_factor_phone": phone}
+        ]
+    })
+    
     if not user:
-        # In production, we might want to return success for privacy, 
-        # but here we'll remain direct as per previous logic.
+        print(f"DEBUG: No user found for phone: {phone}")
         raise HTTPException(status_code=404, detail="No account found with this registered WhatsApp number.")
 
     # 2. Generate secure JWT reset token (10 min expiry)

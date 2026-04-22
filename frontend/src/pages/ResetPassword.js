@@ -39,7 +39,7 @@ const ResetPassword = () => {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/reset-password`, {
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, new_password: newPassword })
