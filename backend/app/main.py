@@ -8,22 +8,23 @@ import os
 
 # CORS Setup
 # CORS Setup
+# CORS Setup
 origins_env = os.getenv("CORS_ORIGINS", "")
 if origins_env and origins_env != "*":
-    allow_origins = origins_env.split(",")
+    # Parse, strip whitespace, and remove trailing slashes for robust matching
+    allow_origins = [origin.strip().rstrip("/") for origin in origins_env.split(",")]
 else:
-    # If CORS_ORIGINS is '*' or empty, we must provide a fallback list or handled specifically
-    # because allow_credentials=True is incompatible with "*"
+    # If CORS_ORIGINS is '*' or empty, we provide local fallbacks
     allow_origins = [
         "http://localhost:3000", 
         "http://127.0.0.1:3000",
         "http://localhost:8001",
         "http://127.0.0.1:8001"
     ]
-    # If the user actually wanted all origins, we'd need a dynamic origin resolver,
-    # but for security we'll stick to specific provided origins in production.
     if origins_env == "*":
-        print("WARNING: CORS_ORIGINS='*' is incompatible with allow_credentials=True. Using default localhost origins. Please provide specific URLs.")
+        print("WARNING: CORS_ORIGINS='*' is incompatible with allow_credentials=True. Using localhost defaults.")
+
+print(f"CORS: Allowed Origins configured as: {allow_origins}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,12 +34,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request Logging Middleware
+# Request Logging Middleware with Origin detection
 @app.middleware("http")
 async def log_requests(request, call_next):
-    print(f"DEBUG: Incoming {request.method} {request.url.path}")
+    origin = request.headers.get("origin")
+    print(f"DEBUG: Incoming {request.method} {request.url.path} | Origin: {origin}")
     response = await call_next(request)
-    print(f"DEBUG: Finished {request.method} {request.url.path} with status {response.status_code}")
     return response
 
 # Include Routers
