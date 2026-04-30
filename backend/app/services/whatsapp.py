@@ -67,5 +67,33 @@ class WhatsAppService:
                 logger.error(f"Response Body: {e.response.text}")
             return None
 
+    def check_number_exists(self, phone: str) -> bool:
+        """Checks if a number is registered on WhatsApp via Evolution API."""
+        if not self.base_url or not self.instance_name or not self.api_key:
+            logger.warning("WhatsAppService: Cannot check number due to missing config.")
+            return True # Fail open if not configured
+            
+        clean_number = self.normalize_phone(phone)
+        url = f"{self.base_url}/chat/whatsappNumbers/{self.instance_name}"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "apikey": self.api_key
+        }
+        payload = {"numbers": [clean_number]}
+        
+        try:
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            if data and isinstance(data, list) and len(data) > 0:
+                return data[0].get("exists", False)
+            return False
+        except requests.exceptions.RequestException as e:
+            logger.error(f"WhatsAppService Error checking number {clean_number}: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                logger.error(f"Response Body: {e.response.text}")
+            return True # Fail open to prevent blocking users if API is down
+
 # Singleton instance
 whatsapp_service = WhatsAppService()

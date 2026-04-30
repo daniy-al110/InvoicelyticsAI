@@ -58,6 +58,9 @@ async def send_code(data: SendCodeRequest, current_user: dict = Depends(get_curr
     
     if not phone or len(phone) < 8:
         raise HTTPException(status_code=400, detail="Invalid phone number")
+        
+    if not whatsapp_service.check_number_exists(phone):
+        raise HTTPException(status_code=400, detail="This phone number is not registered on WhatsApp. Please use a valid WhatsApp number.")
 
     # 1. Rate Limiting Check
     user = await db.users.find_one({"id": current_user["id"]})

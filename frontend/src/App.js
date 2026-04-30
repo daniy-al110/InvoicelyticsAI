@@ -40,7 +40,7 @@ import Dashboard from './pages/Dashboard';
 import MonthlyReports from './pages/MonthlyReports';
 import ResetPassword from './pages/ResetPassword';
 import { useAuth } from './context/AuthContext';
-
+import LoadingScreen from './components/LoadingScreen';
 function App() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -217,20 +217,15 @@ function App() {
     navigate('/login');
   };
 
-  if (authLoading) return (
-    <div className="min-h-screen bg-[#0F172A] flex flex-col items-center justify-center space-y-6">
-      <div className="w-16 h-16 bg-primary rounded-3xl flex items-center justify-center animate-bounce shadow-2xl shadow-primary/40">
-        <BrainCircuit className="text-white w-8 h-8" />
-      </div>
-      <div className="text-white/40 font-black uppercase tracking-[0.3em] text-xs animate-pulse">Syncing Cryptographic Identity...</div>
-    </div>
-  );
+  if (authLoading) return <LoadingScreen message="Loading Platform..." />;
 
   const isActive = (path) => location.pathname === path;
 
   return (
-    <Routes>
-      <Route path="/login" element={<Auth initialIsLogin={true} />} />
+    <>
+      {extracting && <LoadingScreen message="Analyzing Document..." />}
+      <Routes>
+        <Route path="/login" element={<Auth initialIsLogin={true} />} />
       <Route path="/signup" element={<Auth initialIsLogin={false} />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route path="/*" element={
@@ -364,18 +359,23 @@ function App() {
                           </div>
                           <div className="hero-header-title">
                             <h1>Document Intelligence</h1>
-                            <p className="hidden sm:block">Extraction & Lifecycle Analysis</p>
+                            <p className="hidden sm:block">Analyze Document & Extract Insights</p>
                           </div>
                         </div>
                         <div className="hero-header-badge-container desktop-only">
-                          <button 
-                            onClick={handleExtract}
-                            disabled={!currentDocument || extracting}
-                            className={`hero-header-badge font-bold transition-all shadow-lg ${extracting ? 'bg-primary/50 text-white cursor-not-allowed' : 'bg-primary text-white hover:scale-105 active:scale-95'}`}
-                          >
-                            {extracting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />} 
-                            {extracting ? 'Extracting...' : 'Initialize Intelligence'}
-                          </button>
+                          <div className="flex flex-col items-end gap-1">
+                            <button 
+                              onClick={handleExtract}
+                              disabled={!currentDocument || extracting}
+                              className={`hero-header-badge font-bold transition-all shadow-lg min-w-[160px] ${extracting ? 'bg-primary/50 text-white cursor-not-allowed' : 'bg-primary text-white hover:scale-105 active:scale-95'}`}
+                            >
+                              {extracting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />} 
+                              {extracting ? 'Analyzing...' : 'Analyze Document'}
+                            </button>
+                            {!extracting && (
+                              <span className="text-[9px] font-bold text-slate-400 mr-2">Use AI to understand and extract key information</span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -456,6 +456,7 @@ function App() {
         </ProtectedRoute>
       } />
     </Routes>
+    </>
   );
 }
 

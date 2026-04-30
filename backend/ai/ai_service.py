@@ -17,6 +17,10 @@ class AIProviderKey:
         self.is_healthy = True
         self.last_failure_time = 0
         self.cooldown_period = 60  # seconds to wait after a 429
+        # Capabilities: gemini handles vision, deepseek-chat (current implementation) is text-only
+        self.capabilities = ["text"]
+        if provider == "gemini":
+            self.capabilities.append("vision")
 
     def mark_failure(self):
         self.is_healthy = False
@@ -50,10 +54,13 @@ class AIProviderPool:
 
         print(f"[AI-Service] Loaded {len(self.keys)} providers into the pool.")
 
-
-
-    def _get_best_key(self, preferred_provider: str = None) -> Optional[AIProviderKey]:
+    def _get_best_key(self, preferred_provider: str = None, required_capability: str = None) -> Optional[AIProviderKey]:
         healthy_keys = [k for k in self.keys if k.check_health()]
+        
+        # Filter by capability if required (e.g. 'vision')
+        if required_capability:
+            healthy_keys = [k for k in healthy_keys if required_capability in k.capabilities]
+
         if not healthy_keys:
             return None
 
@@ -78,9 +85,12 @@ class AIProviderPool:
         Generates content using the best available key.
         'prompt' can be a string or a list of parts (for multimodal/vision).
         """
-        key_obj = self._get_best_key(preferred_provider)
+        # Detect vision requirement
+        required_capability = "vision" if isinstance(prompt, list) else "text"
+        
+        key_obj = self._get_best_key(preferred_provider, required_capability=required_capability)
         if not key_obj:
-            raise Exception("No healthy AI provider keys available.")
+            raise Exception(f"No healthy AI provider keys available for {required_capability} task.")
 
         key_obj.usage_count += 1
         
@@ -107,9 +117,7 @@ class AIProviderPool:
 
             elif key_obj.provider == "deepseek":
                 if isinstance(prompt, list):
-                    # DeepSeek-Chat does not support vision yet in this pool implementation.
-                    # Failover to Gemini if multimodal data is provided.
-                    key_obj.mark_failure() # Temporarily mark as fail for this specific request type if we need vision
+                    # This should theoretically be blocked by _get_best_key now, but kept as safety.
                     return await self.generate_content(prompt, system_instruction, json_mode, preferred_provider="gemini")
 
                 base_url = "https://api.deepseek.com"
@@ -138,9 +146,9 @@ class AIProviderPool:
             raise e
 
     async def stream_content(self, prompt: str, history: List[Dict] = None, system_instruction: str = None, preferred_provider: str = "gemini") -> AsyncGenerator[str, None]:
-        key_obj = self._get_best_key(preferred_provider)
+        key_obj = self._get_best_key(preferred_provider, required_capability="text")
         if not key_obj:
-            yield "ERROR: No healthy AI provider keys available."
+            yield "ERROR: No healthy AI provider keys available for text streaming."
             return
 
         key_obj.usage_count += 1

@@ -43,10 +43,18 @@ async def get_anomalies(
     for d in docs:
         sd = d.get("structured_data", {})
         high_insights = [i.get("message", "") for i in d.get("insights", []) if isinstance(i, dict) and str(i.get("priority", "")).upper() == "HIGH"]
+        
+        # Resilient extraction for dynamic keys
+        vendor_val = sd.get("vendor", sd.get("vendor_name", sd.get("company", "Unknown")))
+        if isinstance(vendor_val, dict): vendor_val = vendor_val.get("value", "Unknown")
+        
+        amount_val = sd.get("total_amount", sd.get("amount", sd.get("total", 0)))
+        if isinstance(amount_val, dict): amount_val = amount_val.get("value", 0)
+
         results.append({
             "document_id": d.get("id"),
-            "vendor": sd.get("vendor", {}).get("value", "Unknown"),
-            "amount": sd.get("total_amount", {}).get("value", 0),
+            "vendor": vendor_val,
+            "amount": amount_val,
             "anomaly_summary": " | ".join(high_insights)
         })
     return {"anomalies": results}
@@ -74,7 +82,13 @@ async def get_stats(current_user: dict = Depends(get_current_user)):
     all_confs = []
     for d in docs_with_data:
         sd = d["structured_data"]
-        confs = [v.get("confidence", 0) for v in sd.values() if isinstance(v, dict) and "confidence" in v]
+        # Handle both old nested and new flat structures
+        confs = []
+        for v in sd.values():
+            if isinstance(v, dict) and "confidence" in v:
+                confs.append(v.get("confidence", 0))
+            elif isinstance(v, (int, float, str)):
+                confs.append(0.85) # High default confidence for dynamic extraction
         if confs: all_confs.append(sum(confs) / len(confs))
     avg_conf = round((sum(all_confs) / len(all_confs)) * 100) if all_confs else 0
 
@@ -82,9 +96,13 @@ async def get_stats(current_user: dict = Depends(get_current_user)):
     trend_dict = {}
     for d in docs_with_data:
         sd = d.get("structured_data", {})
-        amount = sd.get("total_amount", {}).get("value", 0)
+        amount = sd.get("total_amount", sd.get("amount", sd.get("total", 0)))
+        if isinstance(amount, dict): amount = amount.get("value", 0)
+        
         date_str = None
-        raw_date = sd.get("date", {}).get("value")
+        raw_date = sd.get("date", sd.get("invoice_date", sd.get("statement_date")))
+        if isinstance(raw_date, dict): raw_date = raw_date.get("value")
+        
         if raw_date and str(raw_date).lower() != "n/a":
             try:
                 date_str = pd.to_datetime(str(raw_date)).strftime("%Y-%m-%d")
@@ -117,9 +135,15 @@ async def get_stats(current_user: dict = Depends(get_current_user)):
         return v.title() if v else "Unknown"
 
     for d in docs_with_data:
-        vendor_val = d.get("structured_data", {}).get("vendor", {}).get("value", "Unknown")
+        sd = d.get("structured_data", {})
+        vendor_val = sd.get("vendor", sd.get("vendor_name", sd.get("company", "Unknown")))
+        if isinstance(vendor_val, dict): vendor_val = vendor_val.get("value", "Unknown")
+        
         vendor = normalize_vendor(vendor_val)
-        amount = d.get("structured_data", {}).get("total_amount", {}).get("value", 0)
+        
+        amount = sd.get("total_amount", sd.get("amount", sd.get("total", 0)))
+        if isinstance(amount, dict): amount = amount.get("value", 0)
+        
         try:
             if isinstance(amount, str): amount = float(amount.replace('$', '').replace(',', '').strip())
         except: amount = 0
@@ -150,7 +174,9 @@ async def get_monthly_reports(current_user: dict = Depends(get_current_user)):
     monthly_data = {}
     for d in docs_with_data:
         sd = d.get("structured_data", {})
-        date_val = sd.get("date", {}).get("value")
+        date_val = sd.get("date", sd.get("invoice_date", sd.get("statement_date")))
+        if isinstance(date_val, dict): date_val = date_val.get("value")
+        
         try:
             dt = pd.to_datetime(date_val).to_pydatetime() if date_val and isinstance(date_val, str) else d.get("created_at")
         except: dt = d.get("created_at")
@@ -160,7 +186,9 @@ async def get_monthly_reports(current_user: dict = Depends(get_current_user)):
         if month_key not in monthly_data:
             monthly_data[month_key] = {"month": dt.strftime("%B %Y"), "total_spending": 0, "invoice_count": 0}
             
-        amount = sd.get("total_amount", {}).get("value", 0)
+        amount = sd.get("total_amount", sd.get("amount", sd.get("total", 0)))
+        if isinstance(amount, dict): amount = amount.get("value", 0)
+        
         try:
             if isinstance(amount, str): amount = float(amount.replace('$', '').replace(',', '').strip())
         except: amount = 0

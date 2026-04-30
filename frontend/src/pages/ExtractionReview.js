@@ -12,6 +12,7 @@ import {
   User,
   Hash,
   Activity,
+  Sparkles,
   ChevronRight,
   ChevronDown
 } from 'lucide-react';
@@ -225,35 +226,81 @@ const ExtractionReview = ({ data, onSave, onCancel, filename, documentId, extrac
 
         {/* Main Sections Panel - RIGHT PANEL */}
         <div className="w-full lg:w-1/2">
-          {Object.keys(formData).length === 0 ? (
+          {!formData || Object.keys(formData).length === 0 ? (
             <div className="bg-white rounded-[24px] border border-dashed border-slate-200 shadow-sm p-10 flex flex-col items-center justify-center text-center h-[350px]">
               <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                 <ShieldCheck className="w-8 h-8 text-slate-300" />
+                 <Sparkles className="w-8 h-8 text-slate-300" />
               </div>
-              <h3 className="text-lg font-black text-slate-800 mb-1">No Extracted Data</h3>
+              <h3 className="text-lg font-black text-slate-800 mb-1">No Extraction Performed</h3>
               <p className="text-slate-500 font-medium max-w-sm text-xs">
-                There is no structured data available to review for this document. Please go back to the Documents view and run "Initialize Intelligence" first.
+                No structured data yet. Click 'Analyze Document' to extract insights.
               </p>
             </div>
           ) : (
-            <>
-              {renderSection('metadata', sections.metadata)}
-              {renderSection('financials', sections.financials)}
-              {renderSection('vendor', sections.vendor)}
-              
-              {/* Other Fields Section */}
-              {getUnsectionedFields().length > 0 && (
-                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-6">
-                   <div className="p-5 flex items-center gap-3 border-b border-slate-50">
-                      <div className="p-2.5 bg-slate-100 rounded-xl"><Activity className="w-5 h-5 text-slate-600" /></div>
-                      <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">Additional Intelligence</h2>
-                   </div>
-                   <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                     {getUnsectionedFields().map(field => renderField(field, formData[field]))}
-                   </div>
+            <div className="bg-white rounded-[32px] border border-slate-100 shadow-xl p-8 space-y-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-primary/10 rounded-2xl">
+                  <Activity className="w-6 h-6 text-primary" />
                 </div>
-              )}
-            </>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900 tracking-tight">Extracted Intelligence</h2>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Dynamic AI Analysis Results</p>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                {Object.entries(formData).map(([key, value]) => {
+                  if (key === 'id' || key === 'document_id' || key === 'confidence') return null;
+                  
+                  return (
+                    <div key={key} className="group border-b border-slate-50 last:border-0 py-4 hover:bg-slate-50/50 transition-colors rounded-xl px-4">
+                      <div className="flex flex-col gap-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-primary transition-colors">
+                          {key.replace(/_/g, " ")}
+                        </span>
+                        
+                        <div className="text-sm font-bold text-slate-800">
+                          {Array.isArray(value) ? (
+                            value.length > 0 ? (
+                              <div className="overflow-x-auto mt-2 rounded-xl border border-slate-100">
+                                <table className="w-full text-xs text-left border-collapse">
+                                  <thead>
+                                    <tr className="bg-slate-50">
+                                      {Object.keys(value[0]).map(col => (
+                                        <th key={col} className="px-4 py-3 font-black uppercase tracking-wider text-slate-500 border-b border-slate-100">{col.replace(/_/g, " ")}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {value.map((row, i) => (
+                                      <tr key={i} className="hover:bg-white transition-colors">
+                                        {Object.values(row).map((cell, j) => (
+                                          <td key={j} className="px-4 py-3 text-slate-600 border-b border-slate-50 last:border-b-0">
+                                            {typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            ) : (
+                              <span className="italic text-slate-400">Empty List</span>
+                            )
+                          ) : typeof value === "object" && value !== null ? (
+                            <pre className="text-[11px] bg-slate-900 text-slate-300 p-4 rounded-2xl overflow-x-auto mt-2 font-mono">
+                              {JSON.stringify(value, null, 2)}
+                            </pre>
+                          ) : (
+                            <span className="text-slate-900 break-words">{String(value)}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
       </div>

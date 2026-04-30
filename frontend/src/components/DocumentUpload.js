@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileText, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import LoadingScreen from './LoadingScreen';
 
 const DocumentUpload = ({ onUploadComplete, token }) => {
   const [uploading, setUploading] = useState(false);
@@ -52,6 +53,7 @@ const DocumentUpload = ({ onUploadComplete, token }) => {
 
   return (
     <div className="p-6 border-b border-border">
+      {uploading && <LoadingScreen message="Uploading Document..." />}
       <h2 className="text-2xl font-heading font-bold mb-4 tracking-tight" data-testid="upload-title">
         Upload Document
       </h2>

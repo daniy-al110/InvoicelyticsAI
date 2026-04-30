@@ -115,11 +115,22 @@ async def extract_data(document_id: str, current_user: dict = Depends(get_curren
         
         flat_historical = []
         for h in historical_docs:
-            if h.get('structured_data'):
+            sd = h.get('structured_data', {})
+            if sd:
+                # Resilient extraction for historical context
+                date_val = sd.get('date', sd.get('invoice_date', sd.get('statement_date')))
+                if isinstance(date_val, dict): date_val = date_val.get('value')
+                
+                type_val = sd.get('document_type', sd.get('type', 'Other'))
+                if isinstance(type_val, dict): type_val = type_val.get('value')
+                
+                amt_val = sd.get('total_amount', sd.get('amount', sd.get('total', 0)))
+                if isinstance(amt_val, dict): amt_val = amt_val.get('value')
+
                 flat_historical.append({
-                    "date": h['structured_data'].get('date', {}).get('value'),
-                    "document_type": h['structured_data'].get('document_type', {}).get('value'),
-                    "total_amount": h['structured_data'].get('total_amount', {}).get('value'),
+                    "date": date_val,
+                    "document_type": type_val,
+                    "total_amount": amt_val,
                 })
 
         insights = await generate_insights(structured_data, doc['extracted_text'], flat_historical)

@@ -2,22 +2,15 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { BrainCircuit } from 'lucide-react';
+import LoadingScreen from './LoadingScreen';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
 
+
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0F172A] flex flex-col items-center justify-center space-y-6">
-        <div className="w-16 h-16 bg-primary rounded-3xl flex items-center justify-center animate-bounce shadow-2xl shadow-primary/40">
-          <BrainCircuit className="text-white w-8 h-8" />
-        </div>
-        <div className="text-white/40 font-black uppercase tracking-[0.3em] text-[10px] animate-pulse">
-          Verifying Identity...
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Verifying Identity..." />;
   }
 
   if (!user) {

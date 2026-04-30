@@ -14,16 +14,8 @@ load_dotenv()
 # ─────────────────────────────────────────────────────────────────────────────
 # Required keys that EVERY extraction response must contain.
 # ─────────────────────────────────────────────────────────────────────────────
-_REQUIRED_KEYS = {
-    "invoice_number",
-    "vendor",
-    "date",
-    "total_amount",
-    "tax",
-    "line_items",
-    "currency",
-    "document_type",
-}
+_REQUIRED_KEYS = set()
+
 
 _DOCUMENT_TYPE_ENUM = {"invoice", "statement", "purchase_order", "other"}
 
@@ -207,58 +199,12 @@ class ExtractionValidationError(Exception):
 
 def _validate_and_normalize(raw_dict: Dict) -> Dict:
     """
-    Validate that raw_dict contains exactly the required keys,
-    normalize all field values, and return the clean output dict.
-
-    Raises ExtractionValidationError if any required key is missing.
-    Extra (unexpected) keys are silently stripped.
+    Returns the raw extraction dictionary as is, ensuring it's a valid dict.
+    Confidence scores are no longer enforced as the system is now dynamic.
     """
-    missing = _REQUIRED_KEYS - set(raw_dict.keys())
-    if missing:
-        raise ExtractionValidationError(
-            f"LLM response is missing required keys: {sorted(missing)}"
-        )
-
-    result = {}
-
-    for key in _REQUIRED_KEYS:
-        field = raw_dict[key]
-
-        # Each field must be a dict with 'value' and 'confidence'
-        if not isinstance(field, dict):
-            # LLM returned a scalar — wrap it
-            field = {"value": field, "confidence": 0.5}
-
-        value = field.get("value")
-        confidence = field.get("confidence", 0.0)
-
-        # Clamp confidence to [0.0, 1.0]
-        try:
-            confidence = max(0.0, min(1.0, float(confidence)))
-        except (TypeError, ValueError):
-            confidence = 0.0
-
-        # Per-field normalization
-        if key in ("total_amount", "tax"):
-            value = _normalize_amount(value)
-        elif key == "date":
-            value = _normalize_date(value)
-        elif key == "currency":
-            value = _normalize_currency(value)
-        elif key == "line_items":
-            value = _normalize_line_items(value)
-        elif key == "document_type":
-            value = _normalize_document_type(value)
-        elif isinstance(value, str) and not value.strip():
-            value = None  # Treat empty strings as null
-
-        # If normalization returned None/empty and there was a value, drop confidence
-        if value is None or (key == "line_items" and not value):
-            confidence = 0.0
-
-        result[key] = {"value": value, "confidence": confidence}
-
-    return result
+    if not isinstance(raw_dict, dict):
+        return {"error": "Invalid extraction format from AI"}
+    return raw_dict
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -278,30 +224,11 @@ async def extract_structured_data(text: str) -> Dict:
         GENERIC_INSTRUCTION
     )
 
-    # --- PASS 1: Detect Document Type ---
-    classify_prompt = f"What is the primary document type of the following text? Respond ONLY with one of: invoice, statement, purchase_order, or other.\n\nText:\n{text[:3000]}"
-    try:
-        doc_type_raw = await ai_pool.generate_content(classify_prompt)
-        doc_type_raw = doc_type_raw.strip().lower()
-    except Exception as e:
-        if _is_quota_error(e):
-            return _canonical_fallback("quota_exceeded")
-        doc_type_raw = "other"
-        
-    if "invoice" in doc_type_raw:
-        routing_instruction = INVOICE_INSTRUCTION
-    elif "statement" in doc_type_raw:
-        routing_instruction = STATEMENT_INSTRUCTION
-    elif "purchase_order" in doc_type_raw or "po" in doc_type_raw.split():
-        routing_instruction = PO_INSTRUCTION
-    else:
-        routing_instruction = GENERIC_INSTRUCTION
-
-    # --- PASS 2: Schema Extraction ---
+    # --- Schema Extraction ---
     prompt = EXTRACTION_SCHEMA_PROMPT.format(
-        routing_instruction=routing_instruction, 
         text=text[:15_000]
     )
+
 
     # Attempt extraction
     try:
@@ -334,10 +261,10 @@ async def generate_insights(document_data: Dict, text: str, historical_docs: Lis
         context = "Reference against these historical records for anomaly detection:\n"
         for doc in historical_docs[:5]:
             sd = doc.get('structured_data', {})
-            inv = sd.get('invoice_number', {}).get('value', 'N/A') if isinstance(sd, dict) else 'N/A'
-            ven = sd.get('vendor', {}).get('value', 'N/A') if isinstance(sd, dict) else 'N/A'
-            amt = sd.get('total_amount', {}).get('value', 'N/A') if isinstance(sd, dict) else 'N/A'
-            date_val = sd.get('date', {}).get('value', 'N/A') if isinstance(sd, dict) else 'N/A'
+            inv = sd.get('invoice_number', 'N/A') if isinstance(sd, dict) else 'N/A'
+            ven = sd.get('vendor', 'N/A') if isinstance(sd, dict) else 'N/A'
+            amt = sd.get('total_amount', 'N/A') if isinstance(sd, dict) else 'N/A'
+            date_val = sd.get('date', 'N/A') if isinstance(sd, dict) else 'N/A'
             context += f"- Date: {date_val}, Vendor: {ven}, InvNum: {inv}, Amount: {amt}\n"
 
     try:
@@ -346,8 +273,8 @@ async def generate_insights(document_data: Dict, text: str, historical_docs: Lis
             document_data=json.dumps(document_data, indent=2)
         )
         response_text = await ai_pool.generate_content(prompt, system_instruction=AI_ANALYST_PERSONA)
-                
-        import re
+        # Strip markdown fences if present
+        response_text = _strip_markdown(response_text)
         lines = response_text.split('\n')
         parsed_insights = []
         current_cat = None
@@ -356,7 +283,10 @@ async def generate_insights(document_data: Dict, text: str, historical_docs: Lis
         
         for line in lines:
             line_str = line.strip()
-            if line_str.startswith("###"):
+            if not line_str: continue
+            
+            # Check for header format: ### Title [PRIORITY] or just **Title**
+            if line_str.startswith("###") or (line_str.startswith("**") and line_str.endswith("**") and len(line_str) < 100):
                 if current_cat:
                     parsed_insights.append({
                         "category": current_cat,
@@ -364,7 +294,7 @@ async def generate_insights(document_data: Dict, text: str, historical_docs: Lis
                         "message": "\n".join(current_msg).strip()
                     })
                 
-                title_line = line_str.lstrip('#').strip()
+                title_line = line_str.lstrip('#*').rstrip('*').strip()
                 match = re.search(r'\[(HIGH|MEDIUM|LOW)\]', title_line, re.IGNORECASE)
                 if match:
                     current_priority = match.group(1).capitalize()
@@ -372,18 +302,28 @@ async def generate_insights(document_data: Dict, text: str, historical_docs: Lis
                 else:
                     current_priority = "Medium"
                 
-                title_line = re.sub(r'^\d+\.\s*', '', title_line).strip()
                 current_cat = title_line
                 current_msg = []
             elif current_cat:
-                if line_str:
-                    current_msg.append(line_str)
+                current_msg.append(line_str)
+            else:
+                # Fallback: if no category started yet, start one with the first meaningful line
+                current_cat = "Observation"
+                current_msg.append(line_str)
                     
         if current_cat:
             parsed_insights.append({
                 "category": current_cat,
                 "priority": current_priority,
                 "message": "\n".join(current_msg).strip()
+            })
+            
+        # Ensure we don't return empty list if there's raw text
+        if not parsed_insights and response_text.strip():
+            parsed_insights.append({
+                "category": "Analysis",
+                "priority": "Medium",
+                "message": response_text.strip()
             })
             
         return parsed_insights
