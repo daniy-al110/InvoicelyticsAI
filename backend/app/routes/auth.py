@@ -17,6 +17,7 @@ from ..services.whatsapp import whatsapp_service
 from pydantic import BaseModel
 
 class ForgotPasswordRequest(BaseModel):
+    email: str
     phone: str
 
 class ResetPasswordRequest(BaseModel):
@@ -37,6 +38,9 @@ async def signup(user: UserCreate):
     
     # Normalize phone before storing
     normalized_phone = whatsapp_service.normalize_phone(user.phone)
+    
+    if not whatsapp_service.check_number_exists(normalized_phone):
+        raise HTTPException(status_code=400, detail="This phone number is not registered on WhatsApp. Please use a valid WhatsApp number.")
     
     new_user = User(
         email=user.email,
@@ -110,10 +114,12 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 @router.post("/forgot-password")
 async def forgot_password(data: ForgotPasswordRequest):
     phone = whatsapp_service.normalize_phone(data.phone.strip())
+    email = data.email.strip().lower()
     
-    # 1. Find user by their registered phone or 2FA phone
-    print(f"DEBUG: Password reset request for normalized phone: {phone}")
+    # 1. Find user by their registered email AND phone
+    print(f"DEBUG: Password reset request for email: {email}, phone: {phone}")
     user = await db.users.find_one({
+        "email": email,
         "$or": [
             {"phone": phone},
             {"two_factor_phone": phone}
@@ -121,8 +127,8 @@ async def forgot_password(data: ForgotPasswordRequest):
     })
     
     if not user:
-        print(f"DEBUG: No user found for phone: {phone}")
-        raise HTTPException(status_code=404, detail="No account found with this registered WhatsApp number.")
+        print(f"DEBUG: No user found for email: {email} and phone: {phone}")
+        raise HTTPException(status_code=404, detail="No account found with this email and registered WhatsApp number.")
 
     # 2. Generate secure JWT reset token (10 min expiry)
     token = create_reset_token(user["id"])
