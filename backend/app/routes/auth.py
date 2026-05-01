@@ -17,7 +17,6 @@ from ..services.whatsapp import whatsapp_service
 from pydantic import BaseModel
 
 class ForgotPasswordRequest(BaseModel):
-    email: str
     phone: str
 
 class ResetPasswordRequest(BaseModel):
